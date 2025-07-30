@@ -1,0 +1,180 @@
+
+#logP shows the lyophillicity 
+# Libraries to be loaded
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(corrplot) #for correlation plot
+
+## Getting to know the data ad the columns
+dd <- read.csv("/Users/rahulpurnapatre/Downloads/drug_discovery.csv")
+glimpse(dd)
+str(dd)
+
+## Show us the missing values and in what columns there are missing values 
+print(colSums(is.na(dd))) ##This shows the number of missing values (60 in hydrophobicity)
+
+## Dealing with the missing vales with the median values
+dd$logp[is.na(dd$logp)] <- median(dd$logp, na.rm = TRUE)
+dd$hydrophobicity[is.na(dd$hydrophobicity)] <- median(dd$hydrophobicity, na.rm = TRUE)
+dd$polar_surface_area[is.na(dd$polar_surface_area)] <- median(dd$polar_surface_area, na.rm = TRUE)
+
+## Checking missing values again
+print(colSums(is.na(dd)))
+
+# Identifying Outliers
+summary(dd[,c("molecular_weight","logp","binding_affinity")]) #why only[]?#
+
+
+## Boxplot for identifying outliers
+### Boxplot for Molecular Weight
+ggplot(dd, aes(y = molecular_weight)) +
+  geom_boxplot(fill = "skyblue", outlier.color = "red", outlier.shape = 18, outlier.size = 2) +
+  labs(title = "Distribution of Molecular Weight", y = "Molecular Weight (g/mol)") +
+  theme_minimal()
+
+### Boxplot for logp
+ggplot(dd, aes(y=logp))+
+  geom_boxplot(fill="lightgreen",outlier.color = "red",outlier.shape = 18,outlier.size = 2)+
+  labs(title = "Distribution of LogP",y="LogP")+
+  theme_minimal()
+
+### Boxplot for Binding Affinity
+ggplot(dd, aes(y = binding_affinity)) +
+  geom_boxplot(fill = "salmon", outlier.color = "red", outlier.shape = 18, outlier.size = 2) +
+  labs(title = "Distribution of Binding Affinity", y = "Binding Affinity (pKi)") +
+  theme_minimal()
+
+# Descriptive Statistics to create a Summary Table 
+## now we wil compare the mean ,median, sd and min and max to see if the data is skewed
+summary_stats <- dd %>% 
+  summarise(
+    Variable= c("Molecular Affinity","LogP","Binding Affinity"),
+    Mean= c(mean(molecular_weight),mean(logp),mean(binding_affinity)),
+    Median= c(median(molecular_weight),median(logp),median(binding_affinity)),
+    SD = c(sd(molecular_weight), sd(logp), sd(binding_affinity)),
+    Min = c(min(molecular_weight), min(logp), min(binding_affinity)),
+    Max = c(max(molecular_weight), max(logp), max(binding_affinity))
+  )
+## printing the summary table
+print(summary_stats, row.names = FALSE)
+
+## Histograms to visualize the shape of the data 
+### Histogram for Molecular Weight
+ggplot(dd, aes(x = molecular_weight)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  geom_vline(aes(xintercept = mean(molecular_weight)), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of Molecular Weight", x = "Molecular Weight (g/mol)", y = "Frequency") +
+  theme_minimal()
+
+### Histogram for LogP
+ggplot(dd, aes(x = logp)) +
+  geom_histogram(bins = 30, fill = "lightgreen", color = "black") +
+  geom_vline(aes(xintercept = mean(logp)), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of LogP", x = "LogP", y = "Frequency") +
+  theme_minimal()
+
+### Histogram for Binding Affinity
+ggplot(dd, aes(x = binding_affinity)) +
+  geom_histogram(bins = 30, fill = "salmon", color = "black") +
+  geom_vline(aes(xintercept = mean(binding_affinity)), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of Binding Affinity", x = "Binding Affinity (pKi)", y = "Frequency") +
+  theme_minimal()
+
+# Comparing active vs inactive
+##first we need to add descriptive labels making the table easy to read
+dd$active_status <- factor(dd$active,
+                           levels = c(0,1),
+                           labels = c("Inactive","Active")) #EXPLAIN?#
+
+#Creating the summary table (mean, median)
+activity_grouped_summary <- dd %>% 
+  group_by(active_status) %>% 
+  summarize(
+    Count = n(), #counts the number of rows giving us total count for active and inactive compounds 
+    Mean_MW = mean(molecular_weight),
+    Median_MW = median(molecular_weight),
+    Mean_LogP = mean(logp),
+    Median_LogP = median(logp),
+    Mean_BA= mean(binding_affinity),
+    Median_BA= median(binding_affinity)
+  )
+##printing the grouped summary table 
+print(activity_grouped_summary)
+
+# Visualizing with boxplots 
+## Molecular Weight vs. Activity Status
+ggplot(dd, aes(x = active_status, y = molecular_weight, fill = active_status)) +
+  geom_boxplot(alpha = 0.8) +
+  labs(title = "Molecular Weight vs. Compound Activity",
+       x = "Compound Activity",
+       y = "Molecular Weight (g/mol)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Inactive" = "red", "Active" = "blue")) +
+  theme(legend.position = "none") # Hide legend as colors are self-explanatory
+
+## LogP vs. Activity Status
+ggplot(dd, aes(x = active_status, y = logp, fill = active_status)) +
+  geom_boxplot(alpha = 0.8) +
+  labs(title = "LogP vs. Compound Activity",
+       x = "Compound Activity",
+       y = "LogP") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Inactive" = "red", "Active" = "blue")) +
+  theme(legend.position = "none")
+
+## Binding Affinity vs Activity Status 
+ggplot(dd,aes(x=active_status, y=binding_affinity, fill=active_status))+
+  geom_boxplot(alpha=0.8)+
+  labs(title= "Binding Affinity vs Compound Activity",
+       x="Compound Activity",
+       y="Binding Affinity")+
+  theme_minimal()+
+  scale_fill_manual(values = c("Inactive" = "red", "Active"= "blue"))+
+  theme(legend.position= "none" )
+
+
+# Correlation 
+##numeric column correlation
+numeric_dd <- dd %>% 
+  select(molecular_weight,logp,binding_affinity)
+
+##Computing Correlation matrix
+correlation_matrix <- cor(numeric_dd)
+print(round(correlation_matrix,2))
+### log P and binding affinity shows a positive strong correlation(0.6)
+
+### making a heatmap for the following matrix
+corrplot(correlation_matrix,
+         method="color",
+         type="upper",
+         order="hclust",
+         addCoef.col = "black",
+         tl.col = "black", tl.srt = 45,
+         diag = FALSE)
+
+# Making a Scatterplot for visualization
+## Visualize the relationship between binding affinity and LogP,
+ggplot(dd, aes(x = logp, y = binding_affinity)) +
+  geom_point(aes(color = active_status), alpha = 0.6) + # Color points by activity
+  geom_smooth(method = "lm", color = "black", se = FALSE) + # Add a linear trend line
+  scale_color_manual(values = c("Inactive" = "red", "Active" = "blue")) +
+  labs(title = "Binding Affinity vs. LogP",
+       x = "LogP",
+       y = "Binding Affinity (pKi)",
+       color = "Activity Status") +
+  theme_minimal()
+
+#STATISTICAL TESTING
+##Independant T-Test 
+## Test 1: Is the mean LogP different for active vs. inactive compounds?
+### Null Hypothesis (H₀): There is NO difference in the mean LogP between active and inactive compounds.
+### Alternative Hypothesis (Hₐ): There IS a difference in the mean LogP.
+logp_ttest <- t.test(logp ~ active_status, data = dd)
+print(logp_ttest)
+
+protein_activity_table <- table(dd$protein_id, dd$active_status)
+
+# Chi-Squared test
+chi_test <- chisq.test(protein_activity_table)
+print(chi_test)
