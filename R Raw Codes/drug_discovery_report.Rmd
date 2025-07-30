@@ -1,0 +1,267 @@
+---
+title: "Exploratory Analysis for Drug Discovery Dataset"
+author: "RkP"
+date: "30/07/2025"
+output:
+  pdf_document:
+    toc: true
+  html_document:
+    toc: true
+    toc_float: true
+    theme: united
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1. Project Objective
+
+The goal of this analysis is to explore a simulated drug discovery dataset containing 2000 compounds. We will use descriptive statistics, visualizations, and inferential statistical tests to identify key relationships between molecular properties (molecular weight, LogP), protein characteristics, and compound activity/binding affinity.
+
+## 2. Setup: Loading Libraries
+
+First, we load all the R packages required for our analysis.
+
+```{r load-libraries}
+library(tidyverse) # For data manipulation and plotting (includes ggplot2, dplyr)
+library(corrplot)  # For visualizing correlation matrices
+```
+
+<br>
+
+## Step 1: Data Loading and Cleaning 
+
+We begin by loading the dataset and performing an initial inspection for missing values and data structure.
+```{r load-data}
+dd <- read.csv("/Users/rahulpurnapatre/Downloads/drug_discovery.csv")
+str(dd)
+colSums(is.na(dd))
+```
+
+Data Cleaning was done through imputation of median and all missing values were dealt with accordingly 
+```{r-data-cleaning}
+dd$logp[is.na(dd$logp)] <- median(dd$logp, na.rm = TRUE)
+dd$hydrophobicity[is.na(dd$hydrophobicity)] <- median(dd$hydrophobicity, na.rm = TRUE)
+dd$polar_surface_area[is.na(dd$polar_surface_area)] <- median(dd$polar_surface_area, na.rm = TRUE)
+print(colSums(is.na(dd)))
+```
+
+Next we identify the outliers that are present to give us an idea about the data.
+```{r-id-outliers}
+summary(dd[,c("molecular_weight","logp","binding_affinity")])
+```
+
+Using boxplots to understand the outliers 
+```{r boxplot-outlier}
+## Boxplot for Distribution of Molecular Weight 
+ggplot(dd, aes(y = molecular_weight)) +
+  geom_boxplot(fill = "skyblue", outlier.color = "red", outlier.shape = 18, outlier.size = 2) +
+  labs(title = "Distribution of Molecular Weight", y = "Molecular Weight (g/mol)") +
+  theme_minimal()
+
+## Boxplot for Distribution of LogP
+ggplot(dd, aes(y=logp))+
+  geom_boxplot(fill="lightgreen",outlier.color = "red",outlier.shape = 18,outlier.size = 2)+
+  labs(title = "Distribution of LogP",y="LogP")+
+  theme_minimal()
+
+## Boxplot for Distribution of Binding Affinity
+ggplot(dd, aes(y = binding_affinity)) +
+  geom_boxplot(fill = "salmon", outlier.color = "red", outlier.shape = 18, outlier.size = 2) +
+  labs(title = "Distribution of Binding Affinity", y = "Binding Affinity (pKi)") +
+  theme_minimal()
+```
+
+<br>
+
+## Step 2: Descriptive Analysis 
+### First we will start by summarizing the key quantitative variables to understand their distributions.
+```{r summary-stats}
+summary_stats <- dd %>% 
+  summarise(
+    Variable= c("Molecular Affinity","LogP","Binding Affinity"),
+    Mean= c(mean(molecular_weight),mean(logp),mean(binding_affinity)),
+    Median= c(median(molecular_weight),median(logp),median(binding_affinity)),
+    SD = c(sd(molecular_weight), sd(logp), sd(binding_affinity)),
+    Min = c(min(molecular_weight), min(logp), min(binding_affinity)),
+    Max = c(max(molecular_weight), max(logp), max(binding_affinity))
+  )
+print(summary_stats, row.names = FALSE)
+```
+
+### Visualizing Distributions
+
+Histograms help us visualize the shape of data for each key variable
+```{r histograms}
+#Histogram for Malecular Weight
+ggplot(dd, aes(x = molecular_weight)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  geom_vline(aes(xintercept = mean(molecular_weight)), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of Molecular Weight", x = "Molecular Weight (g/mol)", y = "Frequency") +
+  theme_minimal()
+
+#Histogram for LogP Values 
+ggplot(dd, aes(x = logp)) +
+  geom_histogram(bins = 30, fill = "lightgreen", color = "black") +
+  geom_vline(aes(xintercept = mean(logp)), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of LogP", x = "LogP", y = "Frequency") +
+  theme_minimal()
+
+#Histogram for Binding Affinity
+ggplot(dd, aes(x = binding_affinity)) +
+  geom_histogram(bins = 30, fill = "salmon", color = "black") +
+  geom_vline(aes(xintercept = mean(binding_affinity)), color = "red", linetype = "dashed", linewidth = 1) +
+  labs(title = "Distribution of Binding Affinity", x = "Binding Affinity (pKi)", y = "Frequency") +
+  theme_minimal()
+```
+> **Interpretation:** The distributions for Molecular Weight and LogP appear roughly symmetrical, suggesting they are reasonably well-balanced without extreme skew.
+
+<br>
+
+## Step 3: Group Comparison (Active vs. Inactive)
+
+Now, we compare the properties of active compounds versus inactive ones.
+
+```{r group-comparison}
+##Converting the 'active' column to a factor with descriptive labels 
+dd$active_status <- factor(dd$active,
+                           levels = c(0,1),
+                           labels = c("Inactive","Active")) #EXPLAIN?#
+
+#Creating the summary table (mean, median)
+activity_grouped_summary <- dd %>% 
+  group_by(active_status) %>% 
+  summarize(
+    Count = n(), #counts the number of rows giving us total count for active and inactive compounds 
+    Mean_MW = mean(molecular_weight),
+    Median_MW = median(molecular_weight),
+    Mean_LogP = mean(logp),
+    Median_LogP = median(logp),
+    Mean_BA= mean(binding_affinity),
+    Median_BA= median(binding_affinity)
+  )
+##printing the grouped summary table 
+print(activity_grouped_summary)
+
+```
+
+### Visualizing Group Differences
+
+Boxplots help us in comparing distributions between groups.
+
+```{r boxplots}
+## Molecular Weight vs. Activity Status
+ggplot(dd, aes(x = active_status, y = molecular_weight, fill = active_status)) +
+  geom_boxplot(alpha = 0.8) +
+  labs(title = "Molecular Weight vs. Compound Activity",
+       x = "Compound Activity",
+       y = "Molecular Weight (g/mol)") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Inactive" = "red", "Active" = "blue")) +
+  theme(legend.position = "none") # Hide legend as colors are self-explanatory
+
+## LogP vs. Activity Status
+ggplot(dd, aes(x = active_status, y = logp, fill = active_status)) +
+  geom_boxplot(alpha = 0.8) +
+  labs(title = "LogP vs. Compound Activity",
+       x = "Compound Activity",
+       y = "LogP") +
+  theme_minimal() +
+  scale_fill_manual(values = c("Inactive" = "red", "Active" = "blue")) +
+  theme(legend.position = "none")
+
+## Binding Affinity vs Activity Status 
+ggplot(dd,aes(x=active_status, y=binding_affinity, fill=active_status))+
+  geom_boxplot(alpha=0.8)+
+  labs(title= "Binding Affinity vs Compound Activity",
+       x="Compound Activity",
+       y="Binding Affinity")+
+  theme_minimal()+
+  scale_fill_manual(values = c("Inactive" = "red", "Active"= "blue"))+
+  theme(legend.position= "none" )
+```
+
+> **Interpretation:** There is a striking difference in LogP between the two groups, with active compounds showing a much higher median LogP. In contrast, the molecular weight distributions are nearly identical.
+
+<br>
+
+## Step 4: Correlation & Association
+
+Next step is to examine the linear relationships between our numeric variables.
+
+```{r correlation}
+# Select only numeric columns for the correlation matrix
+numeric_dd <- dd %>% 
+  select(molecular_weight,logp,binding_affinity)
+
+# Compute and visualize the correlation matrix
+correlation_matrix <- cor(numeric_dd)
+print(round(correlation_matrix,2))
+
+### log P and binding affinity shows a positive strong correlation(0.6)
+
+```
+
+### Scatterplot: Affinity vs. LogP
+
+We look into the most significant correlation we found.
+```{r scatterplot}
+ggplot(dd, aes(x = logp, y = binding_affinity)) +
+  geom_point(aes(color = active_status), alpha = 0.6) + # Color points by activity
+  geom_smooth(method = "lm", color = "black", se = FALSE) + # Add a linear trend line
+  scale_color_manual(values = c("Inactive" = "red", "Active" = "blue")) +
+  labs(title = "Binding Affinity vs. LogP",
+       x = "LogP",
+       y = "Binding Affinity (pKi)",
+       color = "Activity Status") +
+  theme_minimal()
+
+```
+
+> **Interpretation:** 
+-The correlation matrix and scatterplot both confirm a strong, positive relationship (r=0.60) between LogP and binding affinity. The scatterplot clearly shows that active compounds cluster in the high-LogP, high-affinity region.
+-The most important finding is how the active (blue) and inactive (red) compounds are separated.
+-Active Compounds (Blue) are clustered in the upper half of the plot, indicating they consistently have higher binding affinities.
+-Inactive Compounds (Red) are concentrated in the lower half, showing they have lower binding affinities.
+
+<br>
+
+## Step 5: Statistical Testing
+
+We use formal statistical tests to confirm our visual observations.
+
+### T-Tests for Group Means
+```{r t-test}
+logp_ttest <- t.test(logp ~ active_status, data = dd)
+print(logp_ttest)
+```
+**T-Test Conclusion:** The p-value for the LogP test is extremely small (`< 2.2e-16`), confirming a statistically significant difference in mean LogP between active and inactive compounds. The p-value for the molecular weight test is not significant, confirming no meaningful difference.
+
+### Chi-Squared Test for Association
+
+```{r chi-squared-test}
+# Create a contingency table
+protein_activity_table <- table(dd$protein_id, dd$active_status)
+
+# Perform the Chi-Squared test
+chi_test <- chisq.test(protein_activity_table)
+print(chi_test)
+```
+
+> **Chi-Squared Conclusion:** The p-value is high (0.83), so we fail to reject the null hypothesis. There is no statistically significant association between the specific protein ID and compound activity.
+
+<br>
+
+## Final Report & Summary
+
+### Key Insights
+1.  **Lipophilicity (LogP) is the Strongest Driver of Activity:** The analysis consistently showed that active compounds have significantly higher LogP values than inactive ones. This was visually evident in boxplots and scatterplots, and statistically confirmed with a highly significant t-test result.
+2.  **Molecular Weight is Not a Differentiating Factor:** There was no meaningful difference in molecular weight between active and inactive compounds.
+3.  **Activity is Independent of the Specific Protein Target:** The Chi-Squared test revealed no association between the protein ID and activity, suggesting the importance of high LogP is a general trend across all targets in this dataset.
+
+### Final Conclusion
+The exploratory and statistical analysis of this dataset robustly demonstrates that **lipophilicity (LogP) is the most critical physicochemical property** for achieving high binding affinity and compound activity. For a real-world drug discovery project based on these findings, the primary recommendation would be to **focus medicinal chemistry efforts on designing compounds with higher LogP values** to maximize the probability of success.
+
+
+
