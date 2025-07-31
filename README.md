@@ -1,5 +1,6 @@
 # Drug-Discovery
 ID relationship between molecular properties 
+Link to Dataset <https://www.kaggle.com/datasets/shahriarkabir/drug-discovery-virtual-screening-dataset>
 
 ## Objective
 The primary objective of this project was to analyze a dataset of 2000 virtual compounds to identify key relationships between molecular properties (e.g., LogP, molecular weight), target proteins, and compound activity. The analysis employed descriptive statistics, group comparisons, correlation analysis, and formal statistical testing to uncover significant trends.
